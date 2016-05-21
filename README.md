@@ -1,0 +1,1 @@
+A script collecting Icelandic Twitter follower data.
