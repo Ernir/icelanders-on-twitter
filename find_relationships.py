@@ -58,7 +58,6 @@ def discover_followers(api, relationships, user_id, verbose=False):
     try:
         for many_users in tweepy.Cursor(api.followers_ids, user_id=user_id).pages():
             relationships = create_new_users(api, relationships, many_users, verbose=verbose)
-            print(many_users)
             new_relationships.extend(many_users)
     except tweepy.error.TweepError as error:
         print(str(error) + ", ignored")
@@ -78,7 +77,7 @@ def main():
     # Some hard-coded variables that probably should be parameters
     json_filename = "relationships_by_id.json"
     verbose = True
-    time_limit = 0  #60*60*7
+    time_limit = 60*60*14
 
     start_time = time()
 
