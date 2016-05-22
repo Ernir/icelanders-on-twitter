@@ -45,8 +45,21 @@ def create_new_users(api, relationships, user_ids, verbose=False):
             if looks_icelandic(user.location):
                 if verbose:
                     print("Creating user {0}".format(user_id))
+                associate_id_with_name(str(user_id), user.screen_name)
                 relationships[str(user_id)] = []
     return relationships
+
+
+def associate_id_with_name(user_id, user_name):
+    """
+    Stores an association between a given user id and an user name.
+    """
+    json_filename = "ids_to_names.json"
+    with open(json_filename) as association_file:
+        associations = json.load(association_file)
+    associations[user_id] = user_name
+    with open(json_filename, "w") as relationship_file:
+        json.dump(associations, relationship_file, indent=4)
 
 
 def discover_followers(api, relationships, user_id, verbose=False):
@@ -77,7 +90,7 @@ def main():
     # Some hard-coded variables that probably should be parameters
     json_filename = "relationships_by_id.json"
     verbose = True
-    time_limit = 60*60*14
+    time_limit = 60 * 60 * 3
 
     start_time = time()
 
@@ -103,7 +116,7 @@ def main():
             print("Looking for followers for {0}".format(user_id))
         relationships = discover_followers(api, relationships, user_id, verbose)
 
-        print("Time elapsed: {0}".format(time()-start_time))
+        print("Time elapsed: {0}".format(time() - start_time))
         if time() - start_time > time_limit:
             break
     # Store the new data
