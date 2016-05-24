@@ -39,14 +39,28 @@ def create_new_users(api, relationships, user_ids, verbose=False):
     """
     Adds the given user ids to the relationships dictionary if they are Icelanders.
     """
+    known_foreigners = get_foreigners()
+    cache_hits = 0
+    users_created = 0
+    foreigners = 0
+    if verbose:
+        print("Creating {} users".format(len(user_ids)))
     for user_id in user_ids:
-        if user_id not in relationships:
+        if user_id not in relationships and user_id not in known_foreigners:
             user = api.get_user(user_id=user_id)
             if looks_icelandic(user.location):
-                if verbose:
-                    print("Creating user {0}".format(user_id))
+                users_created += 1
                 associate_id_with_name(str(user_id), user.screen_name)
                 relationships[str(user_id)] = []
+            else:
+                store_foreigner(user_id)
+                foreigners += 1
+        else:
+            cache_hits += 1
+    if verbose:
+        print("{0} cache hits, {1} foreigners found, {2} new users created".format(
+                cache_hits, foreigners, users_created
+        ))
     return relationships
 
 
@@ -58,8 +72,30 @@ def associate_id_with_name(user_id, user_name):
     with open(json_filename) as association_file:
         associations = json.load(association_file)
     associations[user_id] = user_name
-    with open(json_filename, "w") as relationship_file:
-        json.dump(associations, relationship_file, indent=4)
+    with open(json_filename, "w") as association_file:
+        json.dump(associations, association_file, indent=4)
+
+
+def get_foreigners():
+    """
+    Returns a set of all currently recorded non-Icelanders
+    """
+    json_filename = "foreigners.json"
+    with open(json_filename) as foreigners_file:
+        foreigners = json.load(foreigners_file)
+    return set(foreigners["foreigners"])
+
+
+def store_foreigner(user_id):
+    """
+    Stores the given user ID in a file, so it can be skipped later on
+    """
+    json_filename = "foreigners.json"
+    with open(json_filename) as foreigners_file:
+        foreigners = json.load(foreigners_file)
+    foreigners["foreigners"].append(user_id)
+    with open(json_filename, "w") as foreigners_file:
+        json.dump(foreigners, foreigners_file, indent=4)
 
 
 def discover_followers(api, relationships, user_id, verbose=False):
@@ -90,7 +126,7 @@ def main():
     # Some hard-coded variables that probably should be parameters
     json_filename = "relationships_by_id.json"
     verbose = True
-    time_limit = 60 * 60 * 3
+    time_limit = 60 * 60 * 15
 
     start_time = time()
 
@@ -105,8 +141,7 @@ def main():
     if verbose:
         print("Searching for tweets in Iceland")
     icelanders = discover_icelanders(api, list(relationships.keys()))
-    if verbose:
-        print("Creating new users")
+
     relationships = create_new_users(api, relationships, icelanders, True)
 
     # Find users whose follower data we still haven't stored, and remedy the situation
