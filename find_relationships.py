@@ -40,23 +40,33 @@ def create_new_users(api, relationships, user_ids, verbose=False):
     Adds the given user ids to the relationships dictionary if they are Icelanders.
     """
     known_foreigners = get_foreigners()
-    cache_hits = 0
+
+    curated_ids = [id for id in user_ids if id not in relationships and id not in known_foreigners]
+
+    i = 0
+    page_size = 100
+    cache_hits = len(user_ids) - len(curated_ids)
     users_created = 0
     foreigners = 0
-    if verbose:
-        print("Creating {} users".format(len(user_ids)))
-    for user_id in user_ids:
-        if user_id not in relationships and user_id not in known_foreigners:
-            user = api.get_user(user_id=user_id)
-            if looks_icelandic(user.location):
-                users_created += 1
-                associate_id_with_name(str(user_id), user.screen_name)
-                relationships[str(user_id)] = []
-            else:
-                store_foreigner(user_id)
-                foreigners += 1
-        else:
-            cache_hits += 1
+
+    while i < len(curated_ids):
+        id_subset = curated_ids[i:i+page_size]
+        if verbose:
+            print("Creating {} users".format(len(id_subset)))
+        try:
+            users_list = api.lookup_users(user_ids=id_subset)
+            i += page_size
+            for user in users_list:
+                user_id = str(user.id)
+                if looks_icelandic(user.location):
+                    users_created += 1
+                    associate_id_with_name(user_id, user.screen_name)
+                    relationships[user_id] = []
+                else:
+                    store_foreigner(user_id)
+                    foreigners += 1
+        except tweepy.error.TweepError as error:
+            print(str(error) + ", retrying")
     if verbose:
         print("{0} cache hits, {1} foreigners found, {2} new users created".format(
                 cache_hits, foreigners, users_created
@@ -93,7 +103,7 @@ def store_foreigner(user_id):
     json_filename = "foreigners.json"
     with open(json_filename) as foreigners_file:
         foreigners = json.load(foreigners_file)
-    foreigners["foreigners"].append(user_id)
+    foreigners["foreigners"].append(int(user_id))
     with open(json_filename, "w") as foreigners_file:
         json.dump(foreigners, foreigners_file, indent=4)
 
@@ -126,7 +136,7 @@ def main():
     # Some hard-coded variables that probably should be parameters
     json_filename = "relationships_by_id.json"
     verbose = True
-    time_limit = 60 * 60 * 15
+    time_limit = 0 #60 * 60 * 16
 
     start_time = time()
 
